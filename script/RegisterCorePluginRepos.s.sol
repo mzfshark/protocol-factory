@@ -72,7 +72,7 @@ contract RegisterCorePluginRepos is Script {
         console.log();
 
         deployPluginSetups();
-        createRepos(pluginRepoFactory, maintainer);
+        createRepos(pluginRepoFactory, pluginRepoRegistry, maintainer);
 
         printSummary(pluginRepoFactory, pluginRepoRegistry, maintainer);
 
@@ -106,11 +106,24 @@ contract RegisterCorePluginRepos is Script {
         console.log();
     }
 
-    function createRepos(PluginRepoFactory pluginRepoFactory, address maintainer) internal {
+    function createRepos(
+        PluginRepoFactory pluginRepoFactory,
+        PluginRepoRegistry pluginRepoRegistry,
+        address maintainer
+    ) internal {
         string memory adminSubdomain = vm.envOr("ADMIN_PLUGIN_SUBDOMAIN", string("admin"));
         string memory multisigSubdomain = vm.envOr("MULTISIG_PLUGIN_SUBDOMAIN", string("multisig"));
         string memory tokenVotingSubdomain = vm.envOr("TOKEN_VOTING_PLUGIN_SUBDOMAIN", string("token-voting"));
         string memory sppSubdomain = vm.envOr("STAGED_PROPOSAL_PROCESSOR_PLUGIN_SUBDOMAIN", string("spp"));
+
+        bool ensSupported = address(pluginRepoRegistry.subdomainRegistrar()) != address(0);
+        if (!ensSupported) {
+            console.log("ENS not supported on this network; registering repos with empty subdomain to skip ENS.");
+            adminSubdomain = "";
+            multisigSubdomain = "";
+            tokenVotingSubdomain = "";
+            sppSubdomain = "";
+        }
 
         string memory adminReleaseMetadata = vm.envOr("ADMIN_PLUGIN_RELEASE_METADATA_URI", DEFAULT_ADMIN_RELEASE_METADATA);
         string memory adminBuildMetadata = vm.envOr("ADMIN_PLUGIN_BUILD_METADATA_URI", DEFAULT_ADMIN_BUILD_METADATA);
