@@ -18,6 +18,13 @@ ARTIFACTS_FOLDER := ./artifacts
 LOGS_FOLDER := ./logs
 VERBOSITY := -vvv
 CORE_REPOS_VERBOSITY ?= -vv
+SKIP_VERIFY ?= 0
+
+ifeq ($(SKIP_VERIFY),1)
+CORE_REPOS_VERIFY_ARGS :=
+else
+CORE_REPOS_VERIFY_ARGS := --verify $(VERIFIER_PARAMS)
+endif
 
 # Remove quotes
 NETWORK_NAME:=$(strip $(subst ',, $(subst ",,$(NETWORK_NAME))))
@@ -243,8 +250,7 @@ deploy-core-repos: ## Register core plugin repos on an existing OSx stack (broad
 		--retries 10 \
 		--delay 8 \
 		--broadcast \
-		--verify \
-		$(VERIFIER_PARAMS) \
+		$(CORE_REPOS_VERIFY_ARGS) \
 		$(FORGE_BUILD_CUSTOM_PARAMS) \
 		$(FORGE_SCRIPT_CUSTOM_PARAMS) \
 		$(CORE_REPOS_VERBOSITY) 2>&1 | tee -a $(LOGS_FOLDER)/$(DEPLOYMENT_LOG_FILE) | tee "$$LOGFILE"; then \
