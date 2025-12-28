@@ -109,9 +109,7 @@ contract TestUpgradeScript is Script {
         });
         address newTokenVotingSetup = address(
             new TokenVotingSetup(
-                new GovernanceERC20(
-                    IDAO(address(0)), "", "", GovernanceERC20.MintSettings(new address[](0), new uint256[](0), true)
-                ),
+                new GovernanceERC20(),
                 new GovernanceWrappedERC20(IERC20Upgradeable(address(0)), "", "")
             )
         );

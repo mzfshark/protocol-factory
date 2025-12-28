@@ -85,12 +85,7 @@ contract RegisterCorePluginRepos is Script {
         adminSetup = new AdminSetup();
         multisigSetup = new MultisigSetup();
 
-        governanceERC20Base = new GovernanceERC20(
-            IDAO(address(0)),
-            "",
-            "",
-            GovernanceERC20.MintSettings(new address[](0), new uint256[](0), true)
-        );
+        governanceERC20Base = new GovernanceERC20();
         governanceWrappedERC20Base = new GovernanceWrappedERC20(IERC20Upgradeable(address(0)), "", "");
         tokenVotingSetup = new TokenVotingSetup(governanceERC20Base, governanceWrappedERC20Base);
 
