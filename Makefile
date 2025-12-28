@@ -199,11 +199,23 @@ predeploy-core-repos: export SIMULATE=true
 .PHONY: predeploy-core-repos
 predeploy-core-repos: ## Simulate registering core plugin repos on an existing OSx stack
 	@echo "Simulating core plugin repos registration"
-	forge script $(REGISTER_CORE_REPOS_SCRIPT) \
+	@set -o pipefail; \
+	LOGFILE="$$(mktemp)"; \
+	if forge script $(REGISTER_CORE_REPOS_SCRIPT) \
 		--rpc-url $(RPC_URL) \
 		$(FORGE_BUILD_CUSTOM_PARAMS) \
 		$(FORGE_SCRIPT_CUSTOM_PARAMS) \
-		$(CORE_REPOS_VERBOSITY)
+		$(CORE_REPOS_VERBOSITY) 2>&1 | tee "$$LOGFILE"; then \
+		rm -f "$$LOGFILE"; \
+	else \
+		STATUS=$$?; \
+		if grep -q "Failed to decode constructor arguments" "$$LOGFILE" && grep -q "Script ran successfully\." "$$LOGFILE"; then \
+			echo "WARN: Foundry decode bug after success; treating as success."; \
+			STATUS=0; \
+		fi; \
+		rm -f "$$LOGFILE"; \
+		exit $$STATUS; \
+	fi
 
 .PHONY: deploy
 deploy: test ## Deploy the protocol, verify the code and write to ./artifacts
@@ -224,7 +236,9 @@ deploy: test ## Deploy the protocol, verify the code and write to ./artifacts
 deploy-core-repos: test ## Register core plugin repos on an existing OSx stack (broadcast + optional verify)
 	@echo "Registering core plugin repos"
 	@mkdir -p $(LOGS_FOLDER) $(ARTIFACTS_FOLDER)
-	forge script $(REGISTER_CORE_REPOS_SCRIPT) \
+	@set -o pipefail; \
+	LOGFILE="$$(mktemp)"; \
+	if forge script $(REGISTER_CORE_REPOS_SCRIPT) \
 		--rpc-url $(RPC_URL) \
 		--retries 10 \
 		--delay 8 \
@@ -233,7 +247,17 @@ deploy-core-repos: test ## Register core plugin repos on an existing OSx stack (
 		$(VERIFIER_PARAMS) \
 		$(FORGE_BUILD_CUSTOM_PARAMS) \
 		$(FORGE_SCRIPT_CUSTOM_PARAMS) \
-		$(CORE_REPOS_VERBOSITY) 2>&1 | tee -a $(LOGS_FOLDER)/$(DEPLOYMENT_LOG_FILE)
+		$(CORE_REPOS_VERBOSITY) 2>&1 | tee -a $(LOGS_FOLDER)/$(DEPLOYMENT_LOG_FILE) | tee "$$LOGFILE"; then \
+		rm -f "$$LOGFILE"; \
+	else \
+		STATUS=$$?; \
+		if grep -q "Failed to decode constructor arguments" "$$LOGFILE" && grep -q "Script ran successfully\." "$$LOGFILE"; then \
+			echo "WARN: Foundry decode bug after success; treating as success."; \
+			STATUS=0; \
+		fi; \
+		rm -f "$$LOGFILE"; \
+		exit $$STATUS; \
+	fi
 
 .PHONY: resume
 resume: test ## Retry the last deployment transactions, verify the code and write to ./artifacts
