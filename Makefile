@@ -233,7 +233,7 @@ deploy: test ## Deploy the protocol, verify the code and write to ./artifacts
 		$(VERBOSITY) 2>&1 | tee -a $(LOGS_FOLDER)/$(DEPLOYMENT_LOG_FILE)
 
 .PHONY: deploy-core-repos
-deploy-core-repos: test ## Register core plugin repos on an existing OSx stack (broadcast + optional verify)
+deploy-core-repos: ## Register core plugin repos on an existing OSx stack (broadcast + optional verify)
 	@echo "Registering core plugin repos"
 	@mkdir -p $(LOGS_FOLDER) $(ARTIFACTS_FOLDER)
 	@set -o pipefail; \
