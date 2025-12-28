@@ -1,5 +1,6 @@
-runtimes:
-    - python@3.11.11
+tools:
+    - pylint@3.3.6
+1.11
     - node@22.2.0
 tools:
     - pylint@3.3.6

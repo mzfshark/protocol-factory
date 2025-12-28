@@ -51,6 +51,8 @@ import {GovernanceWrappedERC20} from "@aragon/token-voting-plugin/erc20/Governan
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 
 contract ProtocolFactoryTest is AragonTest {
+    event ProtocolDeployed(ProtocolFactory factory);
+
     ProtocolFactoryBuilder builder;
     ProtocolFactory factory;
     ProtocolFactory.DeploymentParameters deploymentParams;
@@ -141,7 +143,7 @@ contract ProtocolFactoryTest is AragonTest {
     function test_GivenNoPriorDeploymentOnTheFactory() external whenInvokingDeployOnce {
         // It Should emit an event with the factory address
         vm.expectEmit(true, true, true, true);
-        emit ProtocolFactory.ProtocolDeployed(factory);
+        emit ProtocolDeployed(factory);
 
         // Deploy the protocol
         factory.deployOnce();
