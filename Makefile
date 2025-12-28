@@ -86,6 +86,10 @@ else ifeq ($(CHAIN_ID),300)
 else ifeq ($(CHAIN_ID),324)
 	FORGE_SCRIPT_CUSTOM_PARAMS := --slow
 	FORGE_BUILD_CUSTOM_PARAMS := --zksync
+
+# Harmony (no EIP-1559; RPC often lacks eth_feeHistory)
+else ifeq ($(CHAIN_ID),1666600000)
+	FORGE_SCRIPT_CUSTOM_PARAMS := --legacy
 endif
 
 # TARGETS
