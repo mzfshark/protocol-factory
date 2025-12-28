@@ -17,6 +17,7 @@ TEST_TREE_MARKDOWN := TESTS.md
 ARTIFACTS_FOLDER := ./artifacts
 LOGS_FOLDER := ./logs
 VERBOSITY := -vvv
+CORE_REPOS_VERBOSITY ?= -vv
 
 # Remove quotes
 NETWORK_NAME:=$(strip $(subst ',, $(subst ",,$(NETWORK_NAME))))
@@ -202,7 +203,7 @@ predeploy-core-repos: ## Simulate registering core plugin repos on an existing O
 		--rpc-url $(RPC_URL) \
 		$(FORGE_BUILD_CUSTOM_PARAMS) \
 		$(FORGE_SCRIPT_CUSTOM_PARAMS) \
-		$(VERBOSITY)
+		$(CORE_REPOS_VERBOSITY)
 
 .PHONY: deploy
 deploy: test ## Deploy the protocol, verify the code and write to ./artifacts
@@ -232,7 +233,7 @@ deploy-core-repos: test ## Register core plugin repos on an existing OSx stack (
 		$(VERIFIER_PARAMS) \
 		$(FORGE_BUILD_CUSTOM_PARAMS) \
 		$(FORGE_SCRIPT_CUSTOM_PARAMS) \
-		$(VERBOSITY) 2>&1 | tee -a $(LOGS_FOLDER)/$(DEPLOYMENT_LOG_FILE)
+		$(CORE_REPOS_VERBOSITY) 2>&1 | tee -a $(LOGS_FOLDER)/$(DEPLOYMENT_LOG_FILE)
 
 .PHONY: resume
 resume: test ## Retry the last deployment transactions, verify the code and write to ./artifacts
