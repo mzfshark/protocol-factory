@@ -7,8 +7,9 @@ SHELL:=/bin/bash
 
 # CONSTANTS
 
-SOLC_VERSION := $(shell cat foundry.toml | grep solc | cut -d= -f2 | xargs echo || echo "0.8.28")
+SOLC_VERSION := $(shell cat foundry.toml | grep solc | cut -d= -f2 | xargs echo || echo "0.8.18")
 DEPLOY_SCRIPT := script/Deploy.s.sol:DeployScript
+REGISTER_CORE_REPOS_SCRIPT := script/RegisterCorePluginRepos.s.sol:RegisterCorePluginRepos
 SUPPORTED_VERIFIERS := etherscan blockscout sourcify zksync routescan-mainnet routescan-testnet
 MAKE_TEST_TREE_CMD := deno run ./test/scripts/make-test-tree.ts
 VERIFY_CONTRACTS_SCRIPT := script/verify-contracts.sh
@@ -192,11 +193,37 @@ predeploy: ## Simulate a protocol deployment
 		$(FORGE_SCRIPT_CUSTOM_PARAMS) \
 		$(VERBOSITY)
 
+predeploy-core-repos: export SIMULATE=true
+
+.PHONY: predeploy-core-repos
+predeploy-core-repos: ## Simulate registering core plugin repos on an existing OSx stack
+	@echo "Simulating core plugin repos registration"
+	forge script $(REGISTER_CORE_REPOS_SCRIPT) \
+		--rpc-url $(RPC_URL) \
+		$(FORGE_BUILD_CUSTOM_PARAMS) \
+		$(FORGE_SCRIPT_CUSTOM_PARAMS) \
+		$(VERBOSITY)
+
 .PHONY: deploy
 deploy: test ## Deploy the protocol, verify the code and write to ./artifacts
 	@echo "Starting the deployment"
 	@mkdir -p $(LOGS_FOLDER) $(ARTIFACTS_FOLDER)
 	forge script $(DEPLOY_SCRIPT) \
+		--rpc-url $(RPC_URL) \
+		--retries 10 \
+		--delay 8 \
+		--broadcast \
+		--verify \
+		$(VERIFIER_PARAMS) \
+		$(FORGE_BUILD_CUSTOM_PARAMS) \
+		$(FORGE_SCRIPT_CUSTOM_PARAMS) \
+		$(VERBOSITY) 2>&1 | tee -a $(LOGS_FOLDER)/$(DEPLOYMENT_LOG_FILE)
+
+.PHONY: deploy-core-repos
+deploy-core-repos: test ## Register core plugin repos on an existing OSx stack (broadcast + optional verify)
+	@echo "Registering core plugin repos"
+	@mkdir -p $(LOGS_FOLDER) $(ARTIFACTS_FOLDER)
+	forge script $(REGISTER_CORE_REPOS_SCRIPT) \
 		--rpc-url $(RPC_URL) \
 		--retries 10 \
 		--delay 8 \
