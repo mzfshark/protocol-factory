@@ -9,6 +9,8 @@ import {PluginSetupRef} from "@aragon/osx/framework/plugin/setup/PluginSetupProc
 
 import {IPlugin} from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
 import {IPluginSetup} from "@aragon/osx-commons-contracts/src/plugin/setup/IPluginSetup.sol";
+import {IExecutor, Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
+import {IDAO} from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import {TokenVotingSetup} from "@aragon/token-voting-plugin/TokenVotingSetup.sol";
 import {GovernanceERC20} from "@aragon/token-voting-plugin/erc20/GovernanceERC20.sol";
@@ -23,6 +25,7 @@ interface IPermissionManager {
 /// @dev Requer que o caller tenha ROOT no DAO para grant/revoke temporários.
 contract InstallTokenVotingOnDao is Script {
     bytes32 private constant ROOT_PERMISSION_ID = keccak256("ROOT_PERMISSION");
+    bytes32 private constant EXECUTE_PERMISSION_ID = keccak256("EXECUTE_PERMISSION");
 
     modifier broadcast() {
         uint256 privKey = vm.envUint("DEPLOYMENT_PRIVATE_KEY");
@@ -75,6 +78,13 @@ contract InstallTokenVotingOnDao is Script {
         PluginSetupProcessor psp = PluginSetupProcessor(pspAddress);
         PluginRepo repo = PluginRepo(tokenVotingRepoAddress);
         IPermissionManager permissionManager = IPermissionManager(dao);
+        IExecutor executor = IExecutor(dao);
+
+        bool hasExecute = false;
+        try IDAO(dao).hasPermission(dao, deployer, EXECUTE_PERMISSION_ID, bytes("")) returns (bool ok) {
+            hasExecute = ok;
+        } catch {}
+        console.log("- Deployer has EXECUTE_PERMISSION?", hasExecute);
 
         PluginRepo.Tag memory tag = PluginRepo.Tag({release: release, build: build});
         PluginRepo.Version memory version = repo.getVersion(tag);
@@ -125,9 +135,22 @@ contract InstallTokenVotingOnDao is Script {
             excludedAccounts
         );
 
-        // Grant temporários (igual DAOFactory)
-        permissionManager.grant(dao, pspAddress, ROOT_PERMISSION_ID);
-        permissionManager.grant(pspAddress, deployer, psp.APPLY_INSTALLATION_PERMISSION_ID());
+        // Grant temporários (igual DAOFactory), mas executados pelo próprio DAO via execute()
+        Action[] memory grantActions = new Action[](2);
+        grantActions[0] = Action({
+            to: dao,
+            value: 0,
+            data: abi.encodeCall(permissionManager.grant, (dao, pspAddress, ROOT_PERMISSION_ID))
+        });
+        grantActions[1] = Action({
+            to: dao,
+            value: 0,
+            data: abi.encodeCall(
+                permissionManager.grant,
+                (pspAddress, deployer, psp.APPLY_INSTALLATION_PERMISSION_ID())
+            )
+        });
+        executor.execute(keccak256("grant-temp-install-token-voting"), grantActions, 0);
 
         // Prepare
         PluginSetupRef memory setupRef = PluginSetupRef({versionTag: tag, pluginSetupRepo: repo});
@@ -154,9 +177,22 @@ contract InstallTokenVotingOnDao is Script {
             })
         );
 
-        // Revoke temporários
-        permissionManager.revoke(dao, pspAddress, ROOT_PERMISSION_ID);
-        permissionManager.revoke(pspAddress, deployer, psp.APPLY_INSTALLATION_PERMISSION_ID());
+        // Revoke temporários (via execute)
+        Action[] memory revokeActions = new Action[](2);
+        revokeActions[0] = Action({
+            to: dao,
+            value: 0,
+            data: abi.encodeCall(permissionManager.revoke, (dao, pspAddress, ROOT_PERMISSION_ID))
+        });
+        revokeActions[1] = Action({
+            to: dao,
+            value: 0,
+            data: abi.encodeCall(
+                permissionManager.revoke,
+                (pspAddress, deployer, psp.APPLY_INSTALLATION_PERMISSION_ID())
+            )
+        });
+        executor.execute(keccak256("revoke-temp-install-token-voting"), revokeActions, 0);
 
         console.log("Done.");
     }
