@@ -27,10 +27,15 @@ contract InstallTokenVotingOnDao is Script {
     bytes32 private constant ROOT_PERMISSION_ID = keccak256("ROOT_PERMISSION");
     bytes32 private constant EXECUTE_PERMISSION_ID = keccak256("EXECUTE_PERMISSION");
 
+    function _signerPk() internal view returns (uint256) {
+        // Back-compat: se EXECUTOR_PRIVATE_KEY não estiver setado, usa DEPLOYMENT_PRIVATE_KEY.
+        return vm.envOr("EXECUTOR_PRIVATE_KEY", vm.envUint("DEPLOYMENT_PRIVATE_KEY"));
+    }
+
     modifier broadcast() {
-        uint256 privKey = vm.envUint("DEPLOYMENT_PRIVATE_KEY");
+        uint256 privKey = _signerPk();
         vm.startBroadcast(privKey);
-        console.log("- Deployer:", vm.addr(privKey));
+        console.log("- Signer:", vm.addr(privKey));
         console.log("- Chain ID:", block.chainid);
         _;
         vm.stopBroadcast();
@@ -41,7 +46,7 @@ contract InstallTokenVotingOnDao is Script {
         address pspAddress = vm.envAddress("PLUGIN_SETUP_PROCESSOR");
         address tokenVotingRepoAddress = vm.envAddress("TOKEN_VOTING_REPO");
 
-        address deployer = vm.addr(vm.envUint("DEPLOYMENT_PRIVATE_KEY"));
+        address signer = vm.addr(_signerPk());
 
         uint8 release = uint8(vm.envOr("TOKEN_VOTING_RELEASE", uint256(1)));
         uint16 build = uint16(vm.envOr("TOKEN_VOTING_BUILD", uint256(1)));
@@ -59,7 +64,7 @@ contract InstallTokenVotingOnDao is Script {
         string memory tokenSymbol = vm.envOr("TOKEN_SYMBOL", string("GOV"));
 
         // Mint settings (somente para token novo)
-        address mintReceiver = vm.envOr("MINT_RECEIVER", vm.addr(vm.envUint("DEPLOYMENT_PRIVATE_KEY")));
+        address mintReceiver = vm.envOr("MINT_RECEIVER", signer);
         uint256 mintAmount = vm.envOr("MINT_AMOUNT", uint256(1_000_000 ether));
 
         // Target config
@@ -81,10 +86,14 @@ contract InstallTokenVotingOnDao is Script {
         IExecutor executor = IExecutor(dao);
 
         bool hasExecute = false;
-        try IDAO(dao).hasPermission(dao, deployer, EXECUTE_PERMISSION_ID, bytes("")) returns (bool ok) {
+        try IDAO(dao).hasPermission(dao, signer, EXECUTE_PERMISSION_ID, bytes("")) returns (bool ok) {
             hasExecute = ok;
         } catch {}
-        console.log("- Deployer has EXECUTE_PERMISSION?", hasExecute);
+        console.log("- Signer has EXECUTE_PERMISSION?", hasExecute);
+        require(
+            hasExecute,
+            "Signer missing EXECUTE_PERMISSION on DAO. Use the DAO creator/executor key via EXECUTOR_PRIVATE_KEY."
+        );
 
         PluginRepo.Tag memory tag = PluginRepo.Tag({release: release, build: build});
         PluginRepo.Version memory version = repo.getVersion(tag);
@@ -147,7 +156,7 @@ contract InstallTokenVotingOnDao is Script {
             value: 0,
             data: abi.encodeCall(
                 permissionManager.grant,
-                (pspAddress, deployer, psp.APPLY_INSTALLATION_PERMISSION_ID())
+                (pspAddress, signer, psp.APPLY_INSTALLATION_PERMISSION_ID())
             )
         });
         executor.execute(keccak256("grant-temp-install-token-voting"), grantActions, 0);
@@ -189,7 +198,7 @@ contract InstallTokenVotingOnDao is Script {
             value: 0,
             data: abi.encodeCall(
                 permissionManager.revoke,
-                (pspAddress, deployer, psp.APPLY_INSTALLATION_PERMISSION_ID())
+                (pspAddress, signer, psp.APPLY_INSTALLATION_PERMISSION_ID())
             )
         });
         executor.execute(keccak256("revoke-temp-install-token-voting"), revokeActions, 0);
