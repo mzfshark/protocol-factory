@@ -13,6 +13,7 @@ REGISTER_CORE_REPOS_SCRIPT := script/RegisterCorePluginRepos.s.sol:RegisterCoreP
 SUPPORTED_VERIFIERS := etherscan blockscout sourcify zksync routescan-mainnet routescan-testnet
 MAKE_TEST_TREE_CMD := deno run ./test/scripts/make-test-tree.ts
 VERIFY_CONTRACTS_SCRIPT := script/verify-contracts.sh
+VERIFY_BROADCAST_SCRIPT ?= Deploy.s.sol
 TEST_TREE_MARKDOWN := TESTS.md
 ARTIFACTS_FOLDER := ./artifacts
 LOGS_FOLDER := ./logs
@@ -288,19 +289,19 @@ resume: test ## Retry the last deployment transactions, verify the code and writ
 ## Verification:
 
 .PHONY: verify-etherscan
-verify-etherscan: broadcast/Deploy.s.sol/$(CHAIN_ID)/run-latest.json ## Verify the last deployment on an Etherscan compatible explorer
+verify-etherscan: broadcast/$(VERIFY_BROADCAST_SCRIPT)/$(CHAIN_ID)/run-latest.json ## Verify the last broadcast run on an Etherscan-compatible explorer (set VERIFY_BROADCAST_SCRIPT=RegisterCorePluginRepos.s.sol)
 	forge build $(FORGE_BUILD_CUSTOM_PARAMS)
-	bash $(VERIFY_CONTRACTS_SCRIPT) $(CHAIN_ID) $(VERIFIER) $(VERIFIER_URL) $(VERIFIER_API_KEY)
+	BROADCAST_SCRIPT_FILENAME=$(VERIFY_BROADCAST_SCRIPT) bash $(VERIFY_CONTRACTS_SCRIPT) $(CHAIN_ID) $(VERIFIER) $(VERIFIER_URL) $(VERIFIER_API_KEY)
 
 .PHONY: verify-blockscout
-verify-blockscout: broadcast/Deploy.s.sol/$(CHAIN_ID)/run-latest.json ## Verify the last deployment on BlockScout
+verify-blockscout: broadcast/$(VERIFY_BROADCAST_SCRIPT)/$(CHAIN_ID)/run-latest.json ## Verify the last broadcast run on BlockScout (set VERIFY_BROADCAST_SCRIPT=RegisterCorePluginRepos.s.sol)
 	forge build $(FORGE_BUILD_CUSTOM_PARAMS)
-	bash $(VERIFY_CONTRACTS_SCRIPT) $(CHAIN_ID) $(VERIFIER) "https://$(BLOCKSCOUT_HOST_NAME)/api" $(VERIFIER_API_KEY)
+	BROADCAST_SCRIPT_FILENAME=$(VERIFY_BROADCAST_SCRIPT) bash $(VERIFY_CONTRACTS_SCRIPT) $(CHAIN_ID) $(VERIFIER) "https://$(BLOCKSCOUT_HOST_NAME)/api" $(VERIFIER_API_KEY)
 
 .PHONY: verify-sourcify
-verify-sourcify: broadcast/Deploy.s.sol/$(CHAIN_ID)/run-latest.json ## Verify the last deployment on Sourcify
+verify-sourcify: broadcast/$(VERIFY_BROADCAST_SCRIPT)/$(CHAIN_ID)/run-latest.json ## Verify the last broadcast run on Sourcify (set VERIFY_BROADCAST_SCRIPT=RegisterCorePluginRepos.s.sol)
 	forge build $(FORGE_BUILD_CUSTOM_PARAMS)
-	bash $(VERIFY_CONTRACTS_SCRIPT) $(CHAIN_ID) $(VERIFIER) "" ""
+	BROADCAST_SCRIPT_FILENAME=$(VERIFY_BROADCAST_SCRIPT) bash $(VERIFY_CONTRACTS_SCRIPT) $(CHAIN_ID) $(VERIFIER) "" ""
 
 ##
 

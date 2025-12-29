@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to verify all contracts from the latest 'Deploy.s.sol' script run
+# Script to verify all contracts from the latest '<broadcast-script>.s.sol' script run
 # on a single, specified block explorer.
 # It reads deployment details from the corresponding run-latest.json broadcast file.
 
@@ -18,7 +18,9 @@
 set -uo pipefail # Exit on unset variables and on pipeline errors
 
 # Constants
-DEPLOY_SCRIPT_FILENAME="Deploy.s.sol"
+# By default this script reads from broadcast/Deploy.s.sol/<chain_id>/run-latest.json.
+# You can override which broadcast folder to read from by setting BROADCAST_SCRIPT_FILENAME.
+BROADCAST_SCRIPT_FILENAME="${BROADCAST_SCRIPT_FILENAME:-Deploy.s.sol}"
 
 # Functions
 
@@ -68,7 +70,7 @@ build_common_args() {
   if [[ -n "$libraries_cli_string" ]]; then
     read -ra lib_flags <<< "$libraries_cli_string"
     for lib_flag_part in "${lib_flags[@]}"; do
-        common_args+=("$lib_flag_part")
+      common_args+=("$lib_flag_part")
     done
   fi
 
@@ -92,7 +94,18 @@ build_common_args() {
 locate_source_file() {
   local contract_name="$1"
 
-  find src lib | grep -i "/$contract_name.sol\$"
+  # Multiple dependencies can include the same Solidity filename.
+  # We must return exactly one path here (no newlines), otherwise forge
+  # will fail to resolve the source file.
+  local matches
+  matches="$(find src lib -type f -iname "${contract_name}.sol" 2>/dev/null | sed 's|^\./||')"
+
+  if [[ -z "$matches" ]]; then
+    return 1
+  fi
+
+  # Prefer the shortest path (usually the primary source in this repo).
+  printf "%s\n" "$matches" | awk '{ print length($0) "\t" $0 }' | sort -n | head -n 1 | cut -f2-
 }
 
 verify_contract() {
@@ -117,7 +130,7 @@ verify_contract() {
       verify_args+=(--verifier $EXPLORER_TYPE)
       verify_args+=(--verifier-url "$EXPLORER_API_URL")
       if [[ -n "$EXPLORER_API_KEY" ]]; then
-        verify_args+=(--etherscan-api-key \"$EXPLORER_API_KEY\")
+        verify_args+=(--etherscan-api-key "$EXPLORER_API_KEY")
       fi
       ;;
     blockscout)
@@ -128,15 +141,12 @@ verify_contract() {
       verify_args+=(--verifier blockscout)
       verify_args+=(--verifier-url "$EXPLORER_API_URL")
       if [[ -n "$EXPLORER_API_KEY" ]]; then
-        verify_args+=(--etherscan-api-key \"$EXPLORER_API_KEY\")
+        verify_args+=(--etherscan-api-key "$EXPLORER_API_KEY")
       fi
       ;;
     sourcify)
       verify_args+=(--verifier sourcify)
       verify_args+=(--chain-id $CHAIN_ID)
-      if [[ -n "$EXPLORER_API_KEY" ]]; then
-        verify_args+=(--etherscan-api-key \"$EXPLORER_API_KEY\")
-      fi
       ;;
     *)
       echo "Error: Unknown explorer type '${EXPLORER_TYPE}'. Supported types: etherscan, blockscout, sourcify."
@@ -155,7 +165,7 @@ verify_contract() {
 
   echo "forge verify-contract --watch ${verify_args[*]}"
   echo
-  if ETHERSCAN_API_KEY="$EXPLORER_API_KEY" forge verify-contract "${verify_args[@]}" ; then
+  if ETHERSCAN_API_KEY="$EXPLORER_API_KEY" forge verify-contract "${verify_args[@]}"; then
     echo "[SUCCESS] ${contract_name} (${EXPLORER_TYPE})"
   else
     echo "[FAILED] ${contract_name} (${EXPLORER_TYPE})"
@@ -188,15 +198,15 @@ case "$EXPLORER_TYPE" in
 esac
 
 if [[ ("$EXPLORER_TYPE" == "etherscan" || "$EXPLORER_TYPE" == "blockscout") && -z "$EXPLORER_API_URL" ]]; then
-    echo "Error: Explorer API URL (argument 3) is required for type '$EXPLORER_TYPE'."
-    usage
+  echo "Error: Explorer API URL (argument 3) is required for type '$EXPLORER_TYPE'."
+  usage
 fi
 
-RUN_LATEST_JSON_PATH="broadcast/${DEPLOY_SCRIPT_FILENAME}/${CHAIN_ID}/run-latest.json"
+RUN_LATEST_JSON_PATH="broadcast/${BROADCAST_SCRIPT_FILENAME}/${CHAIN_ID}/run-latest.json"
 
 if [[ ! -f "$RUN_LATEST_JSON_PATH" ]]; then
   echo "Error: Broadcast file not found at ${RUN_LATEST_JSON_PATH}"
-  echo "Ensure you have run 'forge script ${DEPLOY_SCRIPT_FILENAME} --chain-id ${CHAIN_ID} --broadcast ...' first."
+  echo "Ensure you have run 'forge script ${BROADCAST_SCRIPT_FILENAME} --chain-id ${CHAIN_ID} --broadcast ...' first."
   exit 1
 fi
 echo "Reading deployment data from: ${RUN_LATEST_JSON_PATH}"
@@ -223,13 +233,19 @@ jq -r "$jq_query" "$RUN_LATEST_JSON_PATH" | while IFS='|' read -r contract_addre
 
   echo ""
   echo "Processing ${contract_name} at ${contract_address}"
-  contract_verification_path="$(locate_source_file "$contract_name"):${contract_name}"
+
+  source_file="$(locate_source_file "$contract_name" || true)"
+  if [[ -z "$source_file" ]]; then
+    echo "[SKIP] Could not locate source file for contract '${contract_name}' under src/ or lib/."
+    continue
+  fi
+  contract_verification_path="${source_file}:${contract_name}"
 
   verify_contract "$contract_address" \
-                  "$contract_name" \
-                  "$contract_verification_path" \
-                  "$constructor_args_hex" \
-                  "$libraries_cli_string"
+    "$contract_name" \
+    "$contract_verification_path" \
+    "$constructor_args_hex" \
+    "$libraries_cli_string"
   sleep 5
 done
 
